@@ -10,10 +10,12 @@ var spectrumExponentScale = 2
 var SpectrumStart = 4
 var SpectrumEnd = 1200
 var SpectrumLogScale = 2.55
+var marginDecay = 1.6;
 
 var resRatio = (window.innerWidth/window.innerHeight)
 var spectrumWidth = 1568 * resRatio;
 spectrumSpacing = 7 * resRatio;
+var spectrumSize = SpectrumBarCount;
 spectrumWidth = (Bar1080pWidth + Bar1080pSeperation) * SpectrumBarCount - Bar1080pSeperation;
 
 var spectrumHeight = 255
@@ -165,4 +167,110 @@ function exponentialTransform(array) {
         newArr[i] = Math.max(Math.pow(array[i] / spectrumHeight, exp) * spectrumHeight, 1);
     }
     return newArr;
+}
+
+function tailTransform(array) {
+	var values = [];
+	for (var i = 0; i < spectrumSize; i++) {
+		var value = array[i];
+		if (i < headMargin) {
+			value *= headMarginSlope * Math.pow(i + 1, marginDecay) + minMarginWeight;
+		} else if (spectrumSize - i <= tailMargin) {
+			value *= tailMarginSlope * Math.pow(spectrumSize - i, marginDecay) + minMarginWeight;
+		}
+		values[i] = value;
+	}
+	return values;
+}
+
+function exponentialTransform(array) {
+	var newArr = [];
+	for (var i = 0; i < array.length; i++) {
+		var exp = (spectrumMaxExponent - spectrumMinExponent) * (1 - Math.pow(i / spectrumSize, spectrumExponentScale)) + spectrumMinExponent;
+		newArr[i] = Math.max(Math.pow(array[i] / spectrumHeight, exp) * spectrumHeight, 1);
+	}
+	return newArr;
+}
+
+// top secret bleeding-edge shit in here
+function experimentalTransform(array) {
+	var resistance = 3; // magic constant
+	var newArr = [];
+	for (var i = 0; i < array.length; i++) {
+		var sum = 0;
+		var divisor = 0;
+		for (var j = 0; j < array.length; j++) {
+			var dist = Math.abs(i - j);
+			var weight = 1 / Math.pow(2, dist);
+			if (weight == 1) weight = resistance;
+			sum += array[j] * weight;
+			divisor += weight;
+		}
+		newArr[i] = sum / divisor;
+	}
+	return newArr;
+}
+
+function peak1(A, c, d) {
+	var m = Math.floor((c + d) / 2);
+	if (A[m - 1] <= A[m] && A[m] >= A[m + 1]) {
+		return m;
+	} else if (A[m - 1] > A[m]) {
+		return peak1(A, c, m - 1);
+	} else if (A[m] < A[m + 1]) {
+		return peak1(A, m + 1, d);
+	}
+}
+
+function doPeak(array) {
+	var newArr = [];
+	for (var i in array) {
+		newArr[i] = peak1(array, opt.i, opt.j);
+	}
+	return newArr;
+}
+
+function ms(array) {
+	var newArr = [];
+	var m = math.mean(array);
+	var s = math.std(array);
+	for (var i in array) {
+		if (array[i] - m > 2 * s) {
+			newArr[i] = array[i];
+		} else {
+			newArr[i] = array[i] / 2;
+		}
+	}
+	return newArr;
+}
+
+function powTransform(array) {
+	var newArr = array.map(v => {
+		return Math.pow(v = v / 255, 1 - v) * 255
+	});
+
+	return newArr;
+}
+
+function normalize(value, max, min, dmax, dmin) {
+	return (dmax - dmin) / (max - min) * (value - max) + dmax
+}
+
+var base = Math.pow(2, 1 / 3);
+
+function spike(array) {
+	var newArr = []
+	newArr = array.map(v => {
+		var _v = normalize(v, 255, 0, 1, 0);
+		return getValFromX(_v, 30, 0);
+	});
+	return newArr;
+}
+
+function compute(x) {
+	return base ** x;
+}
+
+function getValFromX(x, max, min) {
+	return compute(x * (max - min) + min);
 }
